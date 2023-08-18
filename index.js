@@ -2,7 +2,7 @@ const Xray = require('x-ray');
 const x = Xray();
 var https = require("https");
 const express = require('express');
-const app = express(); 
+const app = express();
 const cors = require('cors');
 const ConnectToMongo = require("./Utlis/connection");
 const { saveOrUpdateProperties } = require('./Utlis/utils');
@@ -480,8 +480,8 @@ app.post('/icities', (req, res) => {
         proxyRes.on('end', () => {
             const body = Buffer.concat(chunks);
             Icities(body.toString())
-                .then(data => res.send({ data }))
-                .catch(error => res.send({ error }))
+                .then(data => res.send({ data, success: true }))
+                .catch(error => res.send({ error, success: false }))
 
         });
     });
