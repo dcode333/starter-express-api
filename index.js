@@ -1,7 +1,8 @@
 const Xray = require('x-ray');
 const x = Xray();
+var https = require("https");
 const express = require('express');
-const app = express();
+const app = express(); 
 const cors = require('cors');
 const ConnectToMongo = require("./Utlis/connection");
 const { saveOrUpdateProperties } = require('./Utlis/utils');
@@ -14,8 +15,8 @@ let chrome = {};
 let puppeteer;
 
 // if (process.env.AWS_LAMBDA_FUNCTION_VERSION) {
-//   chrome = require("chrome-aws-lambda");
-//   puppeteer = require("puppeteer-core");
+//     chrome = require("chrome-aws-lambda");
+//     puppeteer = require("puppeteer-core");
 // } else puppeteer = require("puppeteer");
 
 
@@ -23,6 +24,57 @@ app.use(express.json());
 app.use(cors());
 
 // Utils----------------------------------------------------------------------------------------------------------------
+
+
+function Iproperties(html) {
+
+    const scraper = x(html, '#main-content > section.items-container.items-list article.item', [
+        {
+            id: '@data-adid',
+            title: 'div > a',
+            logo: 'div > picture > a > img@src',
+            subTitle: 'div > p.featured-hightop-phrase',
+            price: 'div > div.price-row > span.item-price.h2-simulated',
+            Description: 'div > div.item-description.description > p',
+            details: 'div > div.item-detail-char',
+            image: 'picture > div.item-gallery.gallery-height-core-vitals.neutral-orientation > section > div > div > div > div > div.image-gallery-slide.center > figure.item-gallery@class',
+            href: 'div > a@href'
+
+        }
+    ]);
+
+    return new Promise((resolve, reject) => {
+        scraper((err, data) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(data);
+            }
+        });
+    });
+}
+
+function Icities(html) {
+
+    return new Promise((resolve, reject) => {
+        x(html, `#location_list > li`, [{
+            links: x('ul > li', [{
+                name: 'a',
+                href: 'a@href',
+                properties: 'span'
+
+            }])
+        }])((error, results) => {
+            if (error) {
+                reject(error);
+            } else {
+                const allLinks = results.flatMap(item => item.links);
+                resolve(allLinks);
+            }
+        });
+    })
+}
+
 
 function closeMongoDBConnection() {
     mongoose.connection.close()
@@ -47,8 +99,8 @@ function isSelectorPresent(url, selector) {
             }
         })
     })
-
 }
+
 
 function getProvincesNames(url) {
     return new Promise((resolve, reject) => {
@@ -178,6 +230,7 @@ async function getRealEstateContact(url) {
             ignoreHTTPSErrors: true,
         };
     }
+
     const browser = await puppeteer.launch(options);
     const page = await browser.newPage();
 
@@ -247,8 +300,6 @@ async function saveToMongo(url) {
 }
 // Routes----------------------------------------------------------------------------------------------------------------
 
-
-
 app.get("/", (req, res) => {
 
     getProvincesNames(baseUrl)
@@ -260,6 +311,9 @@ app.get("/", (req, res) => {
         })
 
 });
+
+
+
 
 
 app.post('/', (req, res) => {
@@ -360,6 +414,80 @@ app.post('/contact', async (req, res) => {
     const contact = await getRealEstateContact(url);
 
     res.send({ contact, success: true });
+})
+
+app.post('/iprops', (req, res) => {
+
+    const { url } = req.body;
+    const enurl = encodeURIComponent(url);//from client
+
+    const options = {
+        method: 'GET',
+        hostname: 'api.scrapingant.com',
+        port: null,
+        path: `/v2/general?url=${enurl}&x-api-key=5b774de936374528b49ba8a20068733a&proxy_type=residential&proxy_country=ES&browser=false`,
+        headers: {
+            useQueryString: true,
+        },
+    };
+
+    const reqProxy = https.request(options, (proxyRes) => {
+        const chunks = [];
+
+        proxyRes.on('data', (chunk) => {
+            chunks.push(chunk);
+        });
+
+        proxyRes.on('end', () => {
+            const body = Buffer.concat(chunks);
+
+            Iproperties(body.toString())
+                .then(data => {
+                    console.log(data);
+                    res.status(200).send({ data, success: true });
+                })
+                .catch(error => {
+                    res.status(500).send({ error, success: false });
+                });
+        });
+    });
+
+    reqProxy.end();
+});
+
+app.post('/icities', (req, res) => {
+
+    const { url } = req.body;
+    const enurl = encodeURIComponent(url);//from client
+
+    const options = {
+        method: 'GET',
+        hostname: 'api.scrapingant.com',
+        port: null,
+        path: `/v2/general?url=${enurl}&x-api-key=5b774de936374528b49ba8a20068733a&proxy_type=residential&proxy_country=ES&browser=false`,
+        headers: {
+            useQueryString: true,
+        },
+    };
+
+    const reqProxy = https.request(options, (proxyRes) => {
+        const chunks = [];
+
+        proxyRes.on('data', (chunk) => {
+            chunks.push(chunk);
+        });
+
+        proxyRes.on('end', () => {
+            const body = Buffer.concat(chunks);
+            Icities(body.toString())
+                .then(data => res.send({ data }))
+                .catch(error => res.send({ error }))
+
+        });
+    });
+
+    reqProxy.end();
+
 })
 
 
