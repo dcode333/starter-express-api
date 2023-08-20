@@ -5,10 +5,11 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const ConnectToMongo = require("./Utlis/connection");
-const { saveOrUpdateProperties } = require('./Utlis/utils');
+const { saveOrUpdateProperties, isaveOrUpdateProperties } = require('./Utlis/utils');
 const realEstateData = require('./Models/properties');
 
 const baseUrl = 'https://www.pisos.com/';
+const scrapingToken = '5b774de936374528b49ba8a20068733a'
 const mongoose = require('mongoose');
 
 let chrome = {};
@@ -35,7 +36,7 @@ function Iproperties(html) {
             logo: 'div > picture > a > img@src',
             subTitle: 'div > p.featured-hightop-phrase',
             price: 'div > div.price-row > span.item-price.h2-simulated',
-            Description: 'div > div.item-description.description > p',
+            description: 'div > div.item-description.description > p',
             details: 'div > div.item-detail-char',
             image: 'picture > div.item-gallery.gallery-height-core-vitals.neutral-orientation > section > div > div > div > div > div.image-gallery-slide.center > figure.item-gallery@class',
             href: 'div > a@href'
@@ -75,6 +76,41 @@ function Icities(html) {
     })
 }
 
+function scrapeUrlAndReturnBody(url) {
+    const enurl = encodeURIComponent(url);
+
+    const options = {
+        method: 'GET',
+        hostname: 'api.scrapingant.com',
+        port: null,
+        path: `/v2/general?url=${enurl}&x-api-key=${scrapingToken}&proxy_type=residential&proxy_country=ES&browser=false`,
+        headers: {
+            useQueryString: true,
+        },
+    };
+
+    return new Promise((resolve, reject) => {
+        const reqProxy = https.request(options, (proxyRes) => {
+            const chunks = [];
+
+            proxyRes.on('data', (chunk) => {
+                chunks.push(chunk);
+            });
+
+            proxyRes.on('end', () => {
+                const body = Buffer.concat(chunks);
+                resolve(body.toString());
+            });
+        });
+
+        reqProxy.on('error', (error) => {
+            reject(error);
+        });
+
+        reqProxy.end();
+    });
+}
+
 
 function closeMongoDBConnection() {
     mongoose.connection.close()
@@ -85,7 +121,6 @@ function closeMongoDBConnection() {
             console.error('Error closing MongoDB connection:', error);
         });
 }
-
 
 function isSelectorPresent(url, selector) {
     return new Promise((resolve, reject) => {
@@ -100,7 +135,6 @@ function isSelectorPresent(url, selector) {
         })
     })
 }
-
 
 function getProvincesNames(url) {
     return new Promise((resolve, reject) => {
@@ -298,6 +332,37 @@ async function saveToMongo(url) {
 
     }
 }
+
+async function isaveToMongo(url) {
+    await ConnectToMongo();
+    if (url.includes('pagina-1.htm')) {
+        let furl = url.slice(0, -12);
+        try {
+            let isMoreData = 1;
+            for (let i = 1; i < 2; i++) {
+                if (!isMoreData) break;
+                await scrapeUrlAndReturnBody(furl + `pagina-${i}.htm`)
+                    .then((responseBody) => {
+                        Iproperties(responseBody)
+                            .then(data => {
+                                // console.log(data);
+                                console.log(data.length)
+                                console.log(furl + `pagina-${i}.htm`)
+                                if (data.length > 0)
+                                    isaveOrUpdateProperties(data)
+                                else isMoreData = 0;
+                            })
+                    })
+                    .catch((error) => {
+                        console.log(error)
+                    })
+            }
+        } catch (error) {
+            console.log(error)
+        }
+
+    }
+}
 // Routes----------------------------------------------------------------------------------------------------------------
 
 app.get("/", (req, res) => {
@@ -311,10 +376,6 @@ app.get("/", (req, res) => {
         })
 
 });
-
-
-
-
 
 app.post('/', (req, res) => {
 
@@ -419,74 +480,38 @@ app.post('/contact', async (req, res) => {
 app.post('/iprops', (req, res) => {
 
     const { url } = req.body;
-    const enurl = encodeURIComponent(url);//from client
 
-    const options = {
-        method: 'GET',
-        hostname: 'api.scrapingant.com',
-        port: null,
-        path: `/v2/general?url=${enurl}&x-api-key=5b774de936374528b49ba8a20068733a&proxy_type=residential&proxy_country=ES&browser=false`,
-        headers: {
-            useQueryString: true,
-        },
-    };
-
-    const reqProxy = https.request(options, (proxyRes) => {
-        const chunks = [];
-
-        proxyRes.on('data', (chunk) => {
-            chunks.push(chunk);
-        });
-
-        proxyRes.on('end', () => {
-            const body = Buffer.concat(chunks);
-
-            Iproperties(body.toString())
-                .then(data => {
-                    console.log(data);
+    scrapeUrlAndReturnBody(url)
+        .then((responseBody) => {
+            Iproperties(responseBody)
+                .then(async data => {
+                    await isaveToMongo(url);
                     res.status(200).send({ data, success: true });
                 })
                 .catch(error => {
                     res.status(500).send({ error, success: false });
                 });
+        })
+        .catch((error) => {
+            res.status(500).send({ error, success: false });
         });
-    });
 
-    reqProxy.end();
 });
+
 
 app.post('/icities', (req, res) => {
 
     const { url } = req.body;
-    const enurl = encodeURIComponent(url);//from client
 
-    const options = {
-        method: 'GET',
-        hostname: 'api.scrapingant.com',
-        port: null,
-        path: `/v2/general?url=${enurl}&x-api-key=5b774de936374528b49ba8a20068733a&proxy_type=residential&proxy_country=ES&browser=false`,
-        headers: {
-            useQueryString: true,
-        },
-    };
-
-    const reqProxy = https.request(options, (proxyRes) => {
-        const chunks = [];
-
-        proxyRes.on('data', (chunk) => {
-            chunks.push(chunk);
+    scrapeUrlAndReturnBody(url)
+        .then((responseBody) => {
+            Icities(responseBody)
+                .then(data => res.status(200).send({ data, success: true }))
+                .catch(error => res.status(500).send({ error, success: false }))
+        })
+        .catch((error) => {
+            res.status(500).send({ error, success: false });
         });
-
-        proxyRes.on('end', () => {
-            const body = Buffer.concat(chunks);
-            Icities(body.toString())
-                .then(data => res.send({ data, success: true }))
-                .catch(error => res.send({ error, success: false }))
-
-        });
-    });
-
-    reqProxy.end();
 
 })
 
