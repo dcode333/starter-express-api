@@ -333,13 +333,16 @@ async function saveToMongo(url) {
     }
 }
 
-async function isaveToMongo(url) {
+async function isaveToMongo(url, dataA) {
     await ConnectToMongo();
     if (url.includes('pagina-1.htm')) {
+        await isaveOrUpdateProperties(dataA)
+        console.log(dataA.length)
+        if (dataA.length < 20) return;
         let furl = url.slice(0, -12);
         try {
             let isMoreData = 1;
-            for (let i = 1; i < 2; i++) {
+            for (let i = 2; i < 3; i++) {
                 if (!isMoreData) break;
                 await scrapeUrlAndReturnBody(furl + `pagina-${i}.htm`)
                     .then((responseBody) => {
@@ -485,7 +488,7 @@ app.post('/iprops', (req, res) => {
         .then((responseBody) => {
             Iproperties(responseBody)
                 .then(async data => {
-                    await isaveToMongo(url);
+                    await isaveToMongo(url, data);
                     res.status(200).send({ data, success: true });
                 })
                 .catch(error => {
