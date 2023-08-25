@@ -335,8 +335,8 @@ async function saveToMongo(url) {
 
 async function isaveToMongo(url, dataA) {
     await ConnectToMongo();
+    await isaveOrUpdateProperties(dataA)
     if (url.includes('pagina-1.htm')) {
-        await isaveOrUpdateProperties(dataA)
         console.log(dataA.length)
         if (dataA.length < 20) return;
         let furl = url.slice(0, -12);
