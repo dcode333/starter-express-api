@@ -1,4 +1,5 @@
 const Xray = require('x-ray');
+require('dotenv').config();
 const x = Xray();
 var https = require("https");
 const express = require('express');
@@ -9,7 +10,7 @@ const { saveOrUpdateProperties, isaveOrUpdateProperties } = require('./Utlis/uti
 const realEstateData = require('./Models/properties');
 
 const baseUrl = 'https://www.pisos.com/';
-const scrapingToken = '5b774de936374528b49ba8a20068733a'
+const scrapingToken = process.env.SCRAPINGANT_TOKEN;
 const mongoose = require('mongoose');
 
 let chrome = {};
@@ -26,9 +27,9 @@ app.use(cors());
 
 // Utils----------------------------------------------------------------------------------------------------------------
 
-
+// #main-content > section.items-container.items-list > article.item.item_contains_branding.item_featured.extended-item.item-multimedia-container > picture
 function Iproperties(html) {
-
+// #main-content > section.items-container.items-list > article.item.item_contains_branding.item_featured.extended-item.item-multimedia-container > picture > div.item-gallery.gallery-height-core-vitals.neutral-orientation > section > div > div > div > div > div.image-gallery-slide.right > figure > img
     const scraper = x(html, '#main-content > section.items-container.items-list article.item', [
         {
             id: '@data-adid',
@@ -38,12 +39,11 @@ function Iproperties(html) {
             price: 'div > div.price-row > span.item-price.h2-simulated',
             description: 'div > div.item-description.description > p',
             details: 'div > div.item-detail-char',
-            image: 'picture > div.item-gallery.gallery-height-core-vitals.neutral-orientation > section > div > div > div > div > div.image-gallery-slide.center > figure.item-gallery@class',
+            image: '.item-gallery img@src',
             href: 'div > a@href'
-
         }
     ]);
-
+ 
     return new Promise((resolve, reject) => {
         scraper((err, data) => {
             if (err) {
@@ -517,7 +517,6 @@ app.post('/icities', (req, res) => {
         });
 
 })
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
