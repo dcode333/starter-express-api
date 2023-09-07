@@ -1,7 +1,7 @@
 const Xray = require('x-ray');
 require('dotenv').config();
 const x = Xray();
-var https = require("https");
+const axios = require('axios');
 const express = require('express');
 const app = express();
 const cors = require('cors');
@@ -29,7 +29,7 @@ app.use(cors());
 
 // #main-content > section.items-container.items-list > article.item.item_contains_branding.item_featured.extended-item.item-multimedia-container > picture
 function Iproperties(html) {
-// #main-content > section.items-container.items-list > article.item.item_contains_branding.item_featured.extended-item.item-multimedia-container > picture > div.item-gallery.gallery-height-core-vitals.neutral-orientation > section > div > div > div > div > div.image-gallery-slide.right > figure > img
+    // #main-content > section.items-container.items-list > article.item.item_contains_branding.item_featured.extended-item.item-multimedia-container > picture > div.item-gallery.gallery-height-core-vitals.neutral-orientation > section > div > div > div > div > div.image-gallery-slide.right > figure > img
     const scraper = x(html, '#main-content > section.items-container.items-list article.item', [
         {
             id: '@data-adid',
@@ -43,7 +43,7 @@ function Iproperties(html) {
             href: 'div > a@href'
         }
     ]);
- 
+
     return new Promise((resolve, reject) => {
         scraper((err, data) => {
             if (err) {
@@ -77,38 +77,62 @@ function Icities(html) {
 }
 
 function scrapeUrlAndReturnBody(url) {
-    const enurl = encodeURIComponent(url);
+    // const enurl = encodeURIComponent(url);
 
-    const options = {
-        method: 'GET',
-        hostname: 'api.scrapingant.com',
-        port: null,
-        path: `/v2/general?url=${enurl}&x-api-key=${scrapingToken}&proxy_type=residential&proxy_country=ES&browser=false`,
-        headers: {
-            useQueryString: true,
-        },
-    };
+    // const options = {
+    //     method: 'GET',
+    //     hostname: 'api.scrapingant.com',
+    //     port: null,
+    //     path: `/v2/general?url=${enurl}&x-api-key=${scrapingToken}&proxy_type=residential&proxy_country=ES&browser=false`,
+    //     headers: {
+    //         useQueryString: true,
+    //     },
+    // };
 
+    // return new Promise((resolve, reject) => {
+    //     const reqProxy = https.request(options, (proxyRes) => {
+    //         const chunks = [];
+
+    //         proxyRes.on('data', (chunk) => {
+    //             chunks.push(chunk);
+    //         });
+
+    //         proxyRes.on('end', () => {
+    //             const body = Buffer.concat(chunks);
+    //             resolve(body.toString());
+    //         });
+    //     });
+
+    //     reqProxy.on('error', (error) => {
+    //         reject(error);
+    //     });
+
+    //     reqProxy.end();
+    // });
     return new Promise((resolve, reject) => {
-        const reqProxy = https.request(options, (proxyRes) => {
-            const chunks = [];
-
-            proxyRes.on('data', (chunk) => {
-                chunks.push(chunk);
+        axios
+            .post(
+                "https://api.zyte.com/v1/extract",
+                {
+                    url: url,
+                    httpResponseBody: true,
+                },
+                {
+                    auth: { username: scrapingToken },
+                }
+            )
+            .then((response) => {
+                const httpResponseBody = Buffer.from(
+                    response.data.httpResponseBody,
+                    "base64"
+                );
+                resolve(httpResponseBody.toString()); // Resolve with the decoded response
+            })
+            .catch((error) => {
+                reject(error); // Reject the promise if there's an error
             });
-
-            proxyRes.on('end', () => {
-                const body = Buffer.concat(chunks);
-                resolve(body.toString());
-            });
-        });
-
-        reqProxy.on('error', (error) => {
-            reject(error);
-        });
-
-        reqProxy.end();
     });
+
 }
 
 
